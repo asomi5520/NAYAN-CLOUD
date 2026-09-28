@@ -3012,8 +3012,9 @@ async function initializeAuth() {
 
         resetLoginButton();
 
-        await enterApp(
-          currentUser
+        updateUserUI(currentUser);
+         showApplication();
+         await loadFiles();
         );
 
         return;
