@@ -3106,11 +3106,24 @@ async function initializeAuth() {
    EVENT LISTENERS
 ============================================================ */
 
-loginBtn?.addEventListener(
-  "click",
-  loginWithGoogle
-);
+function bindLoginButton() {
 
+  if (!loginBtn) {
+    return;
+  }
+
+  if (loginBtn.dataset.bound === "true") {
+    return;
+  }
+
+  loginBtn.dataset.bound = "true";
+
+  loginBtn.addEventListener(
+    "click",
+    handleGoogleLogin
+  );
+
+}
 
 /* ============================================================
    APP INITIALIZATION
