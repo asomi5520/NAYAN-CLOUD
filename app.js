@@ -3101,3 +3101,27 @@ async function initializeAuth() {
     );
   }
 }
+/* ============================================================
+   EVENT LISTENERS
+============================================================ */
+
+loginBtn?.addEventListener(
+  "click",
+  loginWithGoogle
+);
+
+
+/* ============================================================
+   APP INITIALIZATION
+============================================================ */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    setupNavigation();
+
+    initializeAuth();
+
+  }
+);
