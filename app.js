@@ -2936,8 +2936,8 @@ async function initializeAuth() {
     "NAYAN CLOUD: Initializing authentication..."
   );
 
-  loginScreen.classList.add("hidden");
-  appScreen.classList.add("hidden");
+  loginScreen?.classList.add("hidden");
+  appScreen?.classList.add("hidden");
 
   try {
 
