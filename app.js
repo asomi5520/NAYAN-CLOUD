@@ -146,6 +146,8 @@ const notice =
 const toast =
   document.getElementById("toast");
 
+  
+
 
 /* ============================================================
    BASIC HELPERS
@@ -2389,6 +2391,16 @@ function setupLogoutButton() {
 
 function setupUploadButtons() {
 
+  const uploadBtn =
+    document.getElementById("uploadBtn");
+
+  const emptyUploadBtn =
+    document.getElementById("emptyUploadBtn");
+
+  const newUploadBtn =
+    document.getElementById("newUploadBtn");
+
+
   uploadBtn?.addEventListener(
     "click",
     openUploadModal
@@ -2539,22 +2551,28 @@ function setupDropZone() {
 
 function setupUploadModal() {
 
+  const modalUploadBtn =
+    document.getElementById("modalUploadBtn");
+
+  const closeUploadBtn =
+    document.getElementById("closeUploadBtn");
+
+  const modalClose =
+    document.getElementById("modalClose");
+
+  const modalBackdrop =
+    document.getElementById("modalBackdrop");
+
+
   modalUploadBtn?.addEventListener(
     "click",
     async () => {
 
-      if (
-        !selectedFiles.length
-      ) {
-
+      if (!selectedFiles.length) {
         return;
-
       }
 
-
-      modalUploadBtn.disabled =
-        true;
-
+      modalUploadBtn.disabled = true;
 
       try {
 
@@ -2562,10 +2580,16 @@ function setupUploadModal() {
           selectedFiles
         );
 
+      } catch (error) {
+
+        console.error(
+          "Upload error:",
+          error
+        );
+
       } finally {
 
-        modalUploadBtn.disabled =
-          false;
+        modalUploadBtn.disabled = false;
 
       }
 
@@ -2591,7 +2615,6 @@ function setupUploadModal() {
   );
 
 }
-
 
 /* ============================================================
    REFRESH
