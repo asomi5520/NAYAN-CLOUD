@@ -1,8 +1,7 @@
 /* ============================================================
    NAYAN CLOUD
-   PREMIUM SUPABASE CLOUD APP
+   CLEAN FINAL APP.JS
 ============================================================ */
-
 
 /* ============================================================
    SUPABASE CONFIG
@@ -12,23 +11,14 @@ const SUPABASE_URL =
   "https://pcuefhymomxaxfncskpr.supabase.co";
 
 const SUPABASE_KEY =
-  "sb_publishable_PcbJ0X0yAGrDIV8M7j6ueg_AsnNbWpv";
+  "sb_publishable_PcbJ0X0yAGrDIV8M7j6ueg_AsNbWpv";
 
 const BUCKET =
   "cloud-files";
 
-
-/*
-  500 GB user allowance
-*/
 const USER_QUOTA =
   500 * 1024 * 1024 * 1024;
 
-
-/*
-  Current browser upload limit.
-  Change this later if required.
-*/
 const MAX_FILE_SIZE =
   500 * 1024 * 1024;
 
@@ -57,29 +47,25 @@ const db =
 ============================================================ */
 
 let currentUser = null;
-
 let files = [];
-
 let currentView = "all";
-
 let selectedFiles = [];
-
 let previewUrls = [];
-
 let loginInProgress = false;
-
 let toastTimer = null;
 
 
 /* ============================================================
-   DOM
+   DOM HELPERS
 ============================================================ */
 
 const $ = (id) =>
   document.getElementById(id);
 
 
-/* LOGIN */
+/* ============================================================
+   LOGIN DOM
+============================================================ */
 
 const loginScreen =
   $("loginScreen");
@@ -88,6 +74,7 @@ const loginBtn =
   $("loginBtn");
 
 const loginButtonText =
+  loginBtn?.querySelector(".google-text") ||
   $("loginButtonText");
 
 const loginLoader =
@@ -97,7 +84,9 @@ const loginMessage =
   $("loginMessage");
 
 
-/* APP */
+/* ============================================================
+   APP DOM
+============================================================ */
 
 const appScreen =
   $("appScreen");
@@ -138,6 +127,11 @@ const userEmail =
 const userAvatar =
   $("userAvatar");
 
+
+/* ============================================================
+   STORAGE DOM
+============================================================ */
+
 const storageFill =
   $("storageFill");
 
@@ -146,6 +140,11 @@ const storageUsed =
 
 const storagePercent =
   $("storagePercent");
+
+
+/* ============================================================
+   PROGRESS DOM
+============================================================ */
 
 const uploadProgress =
   $("uploadProgress");
@@ -159,17 +158,13 @@ const progressText =
 const progressPercent =
   $("progressPercent");
 
+
+/* ============================================================
+   COUNTS
+============================================================ */
+
 const fileCount =
   $("fileCount");
-
-const viewTitle =
-  $("viewTitle");
-
-const sectionTitle =
-  $("sectionTitle");
-
-
-/* COUNTS */
 
 const allCount =
   $("allCount");
@@ -184,7 +179,20 @@ const documentCount =
   $("documentCount");
 
 
-/* MODAL */
+/* ============================================================
+   TITLES
+============================================================ */
+
+const viewTitle =
+  $("viewTitle");
+
+const sectionTitle =
+  $("sectionTitle");
+
+
+/* ============================================================
+   UPLOAD MODAL
+============================================================ */
 
 const uploadModal =
   $("uploadModal");
@@ -205,37 +213,62 @@ const modalUploadBtn =
   $("modalUploadBtn");
 
 
-/* TOAST */
+/* ============================================================
+   TOAST
+============================================================ */
 
 const toast =
   $("toast");
 
 
 /* ============================================================
-   BASIC UI
+   BASIC HELPERS
 ============================================================ */
 
-function showLogin() {
+function escapeHtml(value) {
 
-  loginScreen.classList.remove(
-    "hidden"
-  );
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 
-  appScreen.classList.add(
-    "hidden"
-  );
 }
 
 
-function showApp() {
+/* ============================================================
+   AUTH ERROR DETAILS
+============================================================ */
 
-  loginScreen.classList.add(
-    "hidden"
-  );
+function getAuthErrorDetails(error) {
 
-  appScreen.classList.remove(
-    "hidden"
-  );
+  if (!error) {
+    return "Unknown error.";
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  const message =
+    error.message ||
+    error.error_description ||
+    error.description ||
+    error.error ||
+    "Unknown error.";
+
+  const code =
+    error.code ||
+    error.error_code ||
+    error.status;
+
+  if (code) {
+    return `${message} (Code: ${code})`;
+  }
+
+  return message;
+
 }
 
 
@@ -245,7 +278,7 @@ function showApp() {
 
 function setLoginMessage(
   message = "",
-  error = false
+  isError = false
 ) {
 
   if (!loginMessage) {
@@ -255,10 +288,369 @@ function setLoginMessage(
   loginMessage.textContent =
     message;
 
+  loginMessage.style.display =
+    message ? "block" : "none";
+
   loginMessage.style.color =
-    error
-      ? "#ff8da7"
-      : "#6effb0";
+    isError
+      ? "#ff6b6b"
+      : "";
+
+}
+
+
+/* ============================================================
+   LOGIN BUTTON RESET
+============================================================ */
+
+function resetLoginButton() {
+
+  loginInProgress = false;
+
+  if (loginBtn) {
+
+    loginBtn.disabled =
+      false;
+
+    loginBtn.removeAttribute(
+      "aria-busy"
+    );
+
+  }
+
+  if (loginButtonText) {
+
+    loginButtonText.textContent =
+      "Continue with Google";
+
+  }
+
+  if (loginLoader) {
+
+    loginLoader.classList.add(
+      "hidden"
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   GOOGLE LOGIN
+============================================================ */
+
+async function loginWithGoogle() {
+
+  if (loginInProgress) {
+    return;
+  }
+
+  loginInProgress = true;
+
+  setLoginMessage("");
+
+  if (loginBtn) {
+
+    loginBtn.disabled =
+      true;
+
+    loginBtn.setAttribute(
+      "aria-busy",
+      "true"
+    );
+
+  }
+
+  if (loginButtonText) {
+
+    loginButtonText.textContent =
+      "Connecting...";
+
+  }
+
+  if (loginLoader) {
+
+    loginLoader.classList.remove(
+      "hidden"
+    );
+
+  }
+
+  try {
+
+    const redirectTo =
+      "https://asomi5520.github.io/NAYAN-CLOUD/";
+
+    console.log(
+      "[NAYAN CLOUD] Google login starting..."
+    );
+
+    console.log(
+      "[NAYAN CLOUD] Redirect URL:",
+      redirectTo
+    );
+
+    const {
+      data,
+      error
+    } =
+      await db.auth.signInWithOAuth({
+
+        provider:
+          "google",
+
+        options: {
+
+          redirectTo,
+
+          queryParams: {
+
+            access_type:
+              "offline",
+
+            prompt:
+              "select_account"
+
+          }
+
+        }
+
+      });
+
+
+    if (error) {
+
+      console.error(
+        "[NAYAN CLOUD] Google OAuth error:",
+        error
+      );
+
+      setLoginMessage(
+        `Google login failed: ${getAuthErrorDetails(error)}`,
+        true
+      );
+
+      resetLoginButton();
+
+      return;
+
+    }
+
+
+    if (!data?.url) {
+
+      console.error(
+        "[NAYAN CLOUD] OAuth URL missing.",
+        data
+      );
+
+      setLoginMessage(
+        "Google login could not start. Supabase did not return an OAuth URL.",
+        true
+      );
+
+      resetLoginButton();
+
+      return;
+
+    }
+
+
+    console.log(
+      "[NAYAN CLOUD] Google OAuth started successfully."
+    );
+
+    /*
+      Supabase handles the browser redirect.
+      Do not manually redirect.
+    */
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "[NAYAN CLOUD] Google login exception:",
+      error
+    );
+
+    setLoginMessage(
+      `Unable to start Google login: ${getAuthErrorDetails(error)}`,
+      true
+    );
+
+    resetLoginButton();
+
+  }
+
+}
+
+
+/* ============================================================
+   OAUTH RETURN ERROR
+============================================================ */
+
+function checkOAuthRedirectError() {
+
+  try {
+
+    const hashParams =
+      new URLSearchParams(
+        window.location.hash.replace(
+          /^#/,
+          ""
+        )
+      );
+
+    const searchParams =
+      new URLSearchParams(
+        window.location.search
+      );
+
+
+    const error =
+      hashParams.get("error") ||
+      searchParams.get("error");
+
+
+    const errorCode =
+      hashParams.get("error_code") ||
+      searchParams.get("error_code");
+
+
+    const errorDescription =
+      hashParams.get("error_description") ||
+      searchParams.get("error_description");
+
+
+    if (
+      !error &&
+      !errorCode &&
+      !errorDescription
+    ) {
+
+      return;
+
+    }
+
+
+    let message =
+      errorDescription ||
+      error ||
+      "Google authentication failed.";
+
+
+    try {
+
+      message =
+        decodeURIComponent(message);
+
+    }
+
+    catch (_) {
+
+      /* Keep original message */
+
+    }
+
+
+    if (errorCode) {
+
+      message +=
+        ` (Code: ${errorCode})`;
+
+    }
+
+
+    console.error(
+      "[NAYAN CLOUD] OAuth redirect error:",
+      {
+        error,
+        errorCode,
+        errorDescription
+      }
+    );
+
+
+    setLoginMessage(
+      `Google login failed: ${message}`,
+      true
+    );
+
+
+    resetLoginButton();
+
+
+    /*
+      Clean error parameters
+      from visible URL.
+    */
+
+    try {
+
+      const cleanUrl =
+        window.location.origin +
+        window.location.pathname;
+
+      window.history.replaceState(
+        {},
+        document.title,
+        cleanUrl
+      );
+
+    }
+
+    catch (historyError) {
+
+      console.warn(
+        "[NAYAN CLOUD] Could not clean OAuth URL:",
+        historyError
+      );
+
+    }
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "[NAYAN CLOUD] OAuth error inspection failed:",
+      error
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   LOGIN / APP SCREEN
+============================================================ */
+
+function showLogin() {
+
+  loginScreen?.classList.remove(
+    "hidden"
+  );
+
+  appScreen?.classList.add(
+    "hidden"
+  );
+
+}
+
+
+function showApp() {
+
+  loginScreen?.classList.add(
+    "hidden"
+  );
+
+  appScreen?.classList.remove(
+    "hidden"
+  );
+
 }
 
 
@@ -268,41 +660,46 @@ function setLoginMessage(
 
 function showToast(
   message,
-  error = false
+  isError = false
 ) {
 
   if (!toast) {
     return;
   }
 
-  clearTimeout(toastTimer);
+  clearTimeout(
+    toastTimer
+  );
 
   toast.textContent =
-    message;
+    message || "";
 
-  toast.style.borderColor =
-    error
-      ? "rgba(255,90,125,.35)"
-      : "rgba(110,140,255,.25)";
-
-  toast.style.color =
-    error
-      ? "#ff9bb0"
-      : "#dce4ff";
+  toast.dataset.type =
+    isError
+      ? "error"
+      : "success";
 
   toast.classList.remove(
     "hidden"
   );
 
+  toast.classList.add(
+    "show"
+  );
+
   toastTimer =
-    setTimeout(
-      () => {
-        toast.classList.add(
-          "hidden"
-        );
-      },
-      4000
-    );
+    setTimeout(() => {
+
+      toast.classList.remove(
+        "show"
+      );
+
+      toast.classList.add(
+        "hidden"
+      );
+
+    }, 4000);
+
 }
 
 
@@ -312,7 +709,7 @@ function showToast(
 
 function showNotice(
   message,
-  error = false
+  isError = false
 ) {
 
   if (!notice) {
@@ -320,7 +717,7 @@ function showNotice(
   }
 
   notice.textContent =
-    message;
+    message || "";
 
   notice.classList.remove(
     "hidden"
@@ -328,8 +725,9 @@ function showNotice(
 
   notice.classList.toggle(
     "error",
-    error
+    isError
   );
+
 }
 
 
@@ -338,11 +736,12 @@ function hideNotice() {
   notice?.classList.add(
     "hidden"
   );
+
 }
 
 
 /* ============================================================
-   FILE SIZE
+   FORMAT SIZE
 ============================================================ */
 
 function formatSize(bytes) {
@@ -373,52 +772,270 @@ function formatSize(bytes) {
 
   const value =
     bytes /
-    Math.pow(1024, index);
+    Math.pow(
+      1024,
+      index
+    );
 
-  return (
-    value.toFixed(
-      index === 0
-        ? 0
-        : 2
-    ) +
-    " " +
-    units[index]
-  );
+  return `${value.toFixed(
+    index === 0 ? 0 : 2
+  )} ${units[index]}`;
+
 }
 
 
 /* ============================================================
-   SAFE FILE NAME
+   FORMAT DATE
 ============================================================ */
 
-function safeName(name) {
+function formatDate(value) {
 
-  return String(name || "")
-    .replace(
-      /[^a-zA-Z0-9._()\- ]/g,
-      "_"
+  if (!value) {
+    return "";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
     )
-    .slice(0, 180);
-}
+  ) {
 
+    return "";
 
-/* ============================================================
-   PREVIEW CLEANUP
-============================================================ */
+  }
 
-function cleanupPreviews() {
-
-  previewUrls.forEach(
-    (url) => {
-
-      try {
-        URL.revokeObjectURL(url);
-      } catch (_) {}
-
+  return date.toLocaleDateString(
+    undefined,
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
     }
   );
 
-  previewUrls = [];
+}
+
+
+/* ============================================================
+   FILE TYPE
+============================================================ */
+
+function getFileType(
+  fileName
+) {
+
+  const extension =
+    String(fileName || "")
+      .split(".")
+      .pop()
+      .toLowerCase();
+
+
+  const imageTypes = [
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "webp",
+    "svg",
+    "bmp"
+  ];
+
+
+  const videoTypes = [
+    "mp4",
+    "webm",
+    "mov",
+    "m4v"
+  ];
+
+
+  const audioTypes = [
+    "mp3",
+    "wav",
+    "ogg",
+    "m4a"
+  ];
+
+
+  const documentTypes = [
+    "pdf",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "csv",
+    "ppt",
+    "pptx",
+    "txt"
+  ];
+
+
+  if (
+    imageTypes.includes(
+      extension
+    )
+  ) {
+
+    return "image";
+
+  }
+
+
+  if (
+    videoTypes.includes(
+      extension
+    )
+  ) {
+
+    return "video";
+
+  }
+
+
+  if (
+    audioTypes.includes(
+      extension
+    )
+  ) {
+
+    return "audio";
+
+  }
+
+
+  if (
+    documentTypes.includes(
+      extension
+    )
+  ) {
+
+    return "document";
+
+  }
+
+
+  return "other";
+
+}
+
+
+/* ============================================================
+   FILE ICON
+============================================================ */
+
+function getFileIcon(
+  fileName
+) {
+
+  const extension =
+    String(fileName || "")
+      .split(".")
+      .pop()
+      .toLowerCase();
+
+
+  const icons = {
+
+    pdf:
+      "fa-file-pdf",
+
+    doc:
+      "fa-file-word",
+
+    docx:
+      "fa-file-word",
+
+    xls:
+      "fa-file-excel",
+
+    xlsx:
+      "fa-file-excel",
+
+    csv:
+      "fa-file-excel",
+
+    ppt:
+      "fa-file-powerpoint",
+
+    pptx:
+      "fa-file-powerpoint",
+
+    txt:
+      "fa-file-lines",
+
+    jpg:
+      "fa-file-image",
+
+    jpeg:
+      "fa-file-image",
+
+    png:
+      "fa-file-image",
+
+    gif:
+      "fa-file-image",
+
+    webp:
+      "fa-file-image",
+
+    svg:
+      "fa-file-image",
+
+    mp4:
+      "fa-file-video",
+
+    webm:
+      "fa-file-video",
+
+    mov:
+      "fa-file-video",
+
+    mp3:
+      "fa-file-audio",
+
+    wav:
+      "fa-file-audio",
+
+    zip:
+      "fa-file-zipper",
+
+    rar:
+      "fa-file-zipper",
+
+    "7z":
+      "fa-file-zipper"
+
+  };
+
+
+  return (
+    icons[extension] ||
+    "fa-file"
+  );
+
+}
+
+
+/* ============================================================
+   USER FOLDER
+============================================================ */
+
+function getUserFolder() {
+
+  if (!currentUser?.id) {
+
+    throw new Error(
+      "User session is missing."
+    );
+
+  }
+
+  return currentUser.id;
+
 }
 
 
@@ -426,7 +1043,9 @@ function cleanupPreviews() {
    USER UI
 ============================================================ */
 
-function updateUserUI(user) {
+function updateUserUI(
+  user
+) {
 
   if (!user) {
     return;
@@ -438,11 +1057,8 @@ function updateUserUI(user) {
   const name =
     metadata.full_name ||
     metadata.name ||
-    "Google User";
-
-  const email =
     user.email ||
-    "Google account";
+    "User";
 
   const avatar =
     metadata.avatar_url ||
@@ -451,14 +1067,18 @@ function updateUserUI(user) {
 
 
   if (userName) {
+
     userName.textContent =
       name;
+
   }
 
 
   if (userEmail) {
+
     userEmail.textContent =
-      email;
+      user.email || "";
+
   }
 
 
@@ -469,293 +1089,50 @@ function updateUserUI(user) {
       userAvatar.src =
         avatar;
 
-    } else {
+      userAvatar.alt =
+        name;
+
+    }
+
+    else {
 
       userAvatar.removeAttribute(
         "src"
       );
+
+      userAvatar.alt =
+        name;
+
     }
+
   }
+
 }
 
 
 /* ============================================================
-   CATEGORY
+   FILE CATEGORY
 ============================================================ */
 
-function getCategory(file) {
-
-  const type =
-    file.mime_type || "";
-
-
-  if (
-    type.startsWith(
-      "image/"
-    )
-  ) {
-    return "images";
-  }
-
-
-  if (
-    type.startsWith(
-      "video/"
-    )
-  ) {
-    return "videos";
-  }
-
-
-  return "documents";
-}
-
-
-/* ============================================================
-   FILE ICON
-============================================================ */
-
-function getIcon(file) {
-
-  const type =
-    file.mime_type || "";
-
-
-  if (
-    type.startsWith(
-      "image/"
-    )
-  ) {
-    return "▧";
-  }
-
-
-  if (
-    type.startsWith(
-      "video/"
-    )
-  ) {
-    return "▷";
-  }
-
-
-  if (
-    type.includes("pdf")
-  ) {
-    return "PDF";
-  }
-
-
-  if (
-    type.includes("word") ||
-    type.includes("document")
-  ) {
-    return "DOC";
-  }
-
-
-  if (
-    type.includes("spreadsheet") ||
-    type.includes("excel")
-  ) {
-    return "XLS";
-  }
-
-
-  if (
-    type.includes("zip") ||
-    type.includes("rar")
-  ) {
-    return "ZIP";
-  }
-
-
-  return "FILE";
-}
-
-
-/* ============================================================
-   ENTER APP
-============================================================ */
-
-async function enterApp(
-  user
+function fileMatchesView(
+  file
 ) {
 
-  if (!user) {
-    return;
+  if (
+    currentView ===
+    "all"
+  ) {
+
+    return true;
+
   }
 
-  currentUser =
-    user;
-
-  updateUserUI(
-    user
+  return (
+    getFileType(
+      file.file_name
+    ) === currentView
   );
 
-  showApp();
-
-  await loadFiles();
-}
-
-
-/* ============================================================
-   CLEAR APP
-============================================================ */
-
-function clearApp() {
-
-  currentUser = null;
-
-  files = [];
-
-  selectedFiles = [];
-
-  cleanupPreviews();
-
-  if (fileGrid) {
-    fileGrid.innerHTML = "";
-  }
-
-  if (userName) {
-    userName.textContent =
-      "Account";
-  }
-
-  if (userEmail) {
-    userEmail.textContent = "";
-  }
-
-  if (userAvatar) {
-    userAvatar.removeAttribute(
-      "src"
-    );
-  }
-
-  closeUploadModal();
-
-  showLogin();
-}
-
-
-/* ============================================================
-   GOOGLE LOGIN
-============================================================ */
-
-async function loginWithGoogle() {
-
-  if (loginInProgress) {
-    return;
-  }
-
-  loginInProgress = true;
-
-  setLoginMessage("");
-
-  loginBtn.disabled =
-    true;
-
-  loginButtonText.textContent =
-    "Connecting...";
-
-  loginLoader?.classList.remove(
-    "hidden"
-  );
-
-
-  try {
-
-    /*
-      Always use the exact current origin
-      and pathname.
-
-      Example:
-      https://yourdomain.com/
-    */
-
-    const redirectTo =
-      window.location.origin +
-      window.location.pathname;
-
-
-    const {
-      error
-    } =
-      await db.auth.signInWithOAuth({
-
-        provider: "google",
-
-        options: {
-
-          redirectTo,
-
-          queryParams: {
-            access_type: "offline",
-            prompt: "select_account"
-          }
-
-        }
-
-      });
-
-
-    if (error) {
-
-      console.error(
-        "Google OAuth error:",
-        error
-      );
-
-      setLoginMessage(
-        error.message ||
-        "Google login failed.",
-        true
-      );
-
-      resetLoginButton();
-
-    }
-
-  } catch (error) {
-
-    console.error(
-      "Google login exception:",
-      error
-    );
-
-    setLoginMessage(
-      error.message ||
-      "Unable to start Google login.",
-      true
-    );
-
-    resetLoginButton();
-  }
-}
-
-
-/* ============================================================
-   RESET LOGIN BUTTON
-============================================================ */
-
-function resetLoginButton() {
-
-  loginInProgress =
-    false;
-
-  if (loginBtn) {
-    loginBtn.disabled =
-      false;
-  }
-
-  if (loginButtonText) {
-    loginButtonText.textContent =
-      "Continue with Google";
-  }
-
-  loginLoader?.classList.add(
-    "hidden"
-  );
 }
 
 
@@ -769,11 +1146,10 @@ async function loadFiles() {
     return;
   }
 
-  hideNotice();
-
-  cleanupPreviews();
-
   try {
+
+    showLoadingState();
+
 
     const {
       data,
@@ -781,9 +1157,7 @@ async function loadFiles() {
     } =
       await db
         .from("user_files")
-        .select(
-          "id,user_id,file_name,object_path,mime_type,file_size,created_at"
-        )
+        .select("*")
         .eq(
           "user_id",
           currentUser.id
@@ -798,129 +1172,346 @@ async function loadFiles() {
 
     if (error) {
 
-      console.error(
-        "Database error:",
-        error
-      );
+      throw error;
 
-      showNotice(
-        "Could not load files: " +
-        error.message,
-        true
-      );
-
-      return;
     }
 
 
     files =
-      data || [];
+      Array.isArray(data)
+        ? data
+        : [];
 
 
-    updateStorage();
+    updateStorageUI();
 
     updateCounts();
 
     renderFiles();
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     console.error(
-      "Load files error:",
+      "[NAYAN CLOUD] Load files error:",
       error
     );
 
-    showNotice(
-      "Could not load files.",
+    files = [];
+
+    updateStorageUI();
+
+    updateCounts();
+
+    renderFiles();
+
+
+    showToast(
+      `Could not load files: ${getAuthErrorDetails(error)}`,
       true
     );
+
   }
+
+  finally {
+
+    hideLoadingState();
+
+  }
+
 }
 
 
 /* ============================================================
-   STORAGE
+   RENDER FILES
 ============================================================ */
 
-function updateStorage() {
+function renderFiles() {
 
-  const used =
-    files.reduce(
-      (
-        total,
-        file
-      ) =>
-        total +
-        Number(
-          file.file_size || 0
-        ),
-      0
+  if (!fileGrid) {
+    return;
+  }
+
+
+  const query =
+    searchInput?.value
+      ?.trim()
+      .toLowerCase() ||
+    "";
+
+
+  let visibleFiles =
+    files.filter(
+      file =>
+        fileMatchesView(file)
     );
 
 
-  const percent =
-    Math.min(
-      100,
-      (
-        used /
-        USER_QUOTA
-      ) *
-      100
+  if (query) {
+
+    visibleFiles =
+      visibleFiles.filter(
+        file =>
+          String(
+            file.file_name || ""
+          )
+            .toLowerCase()
+            .includes(query)
+      );
+
+  }
+
+
+  fileGrid.innerHTML =
+    "";
+
+
+  if (!visibleFiles.length) {
+
+    emptyState?.classList.remove(
+      "hidden"
     );
 
+    return;
 
-  if (storageFill) {
-    storageFill.style.width =
-      percent + "%";
   }
 
 
-  if (storagePercent) {
-    storagePercent.textContent =
-      percent.toFixed(2) + "%";
-  }
+  emptyState?.classList.add(
+    "hidden"
+  );
 
 
-  if (storageUsed) {
-    storageUsed.textContent =
-      formatSize(used);
-  }
+  visibleFiles.forEach(
+    file => {
+
+      fileGrid.appendChild(
+        createFileCard(file)
+      );
+
+    }
+  );
+
 }
 
 
 /* ============================================================
-   COUNTS
+   CREATE FILE CARD
+============================================================ */
+
+function createFileCard(
+  file
+) {
+
+  const card =
+    document.createElement(
+      "article"
+    );
+
+
+  card.className =
+    "file-card";
+
+
+  const fileName =
+    file.file_name ||
+    "Unnamed file";
+
+
+  const type =
+    getFileType(
+      fileName
+    );
+
+
+  const icon =
+    getFileIcon(
+      fileName
+    );
+
+
+  const size =
+    formatSize(
+      Number(
+        file.file_size || 0
+      )
+    );
+
+
+  const date =
+    formatDate(
+      file.created_at
+    );
+
+
+  card.innerHTML = `
+
+    <div class="file-card-icon">
+
+      <i class="fa-solid ${icon}"></i>
+
+    </div>
+
+    <div class="file-card-info">
+
+      <h3
+        title="${escapeHtml(fileName)}"
+      >
+        ${escapeHtml(fileName)}
+      </h3>
+
+      <p>
+        ${escapeHtml(size)}
+        ${date
+          ? ` • ${escapeHtml(date)}`
+          : ""}
+      </p>
+
+    </div>
+
+    <div class="file-card-actions">
+
+      <button
+        type="button"
+        class="file-action"
+        data-action="preview"
+        title="Preview"
+      >
+        <i class="fa-solid fa-eye"></i>
+      </button>
+
+      <button
+        type="button"
+        class="file-action"
+        data-action="download"
+        title="Download"
+      >
+        <i class="fa-solid fa-download"></i>
+      </button>
+
+      <button
+        type="button"
+        class="file-action danger"
+        data-action="delete"
+        title="Delete"
+      >
+        <i class="fa-solid fa-trash"></i>
+      </button>
+
+    </div>
+
+  `;
+
+
+  card
+    .querySelectorAll(
+      "[data-action]"
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          event => {
+
+            event.stopPropagation();
+
+            const action =
+              button.dataset.action;
+
+
+            if (
+              action ===
+              "preview"
+            ) {
+
+              previewFile(file);
+
+            }
+
+
+            if (
+              action ===
+              "download"
+            ) {
+
+              downloadFile(file);
+
+            }
+
+
+            if (
+              action ===
+              "delete"
+            ) {
+
+              deleteFile(file);
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+
+  card.addEventListener(
+    "dblclick",
+    () => {
+
+      previewFile(file);
+
+    }
+  );
+
+
+  return card;
+
+}
+
+
+/* ============================================================
+   UPDATE COUNTS
 ============================================================ */
 
 function updateCounts() {
 
+  const all =
+    files.length;
+
+
   const images =
     files.filter(
       file =>
-        getCategory(file) ===
-        "images"
+        getFileType(
+          file.file_name
+        ) === "image"
     ).length;
 
 
   const videos =
     files.filter(
       file =>
-        getCategory(file) ===
-        "videos"
+        getFileType(
+          file.file_name
+        ) === "video"
     ).length;
 
 
   const documents =
     files.filter(
       file =>
-        getCategory(file) ===
-        "documents"
+        getFileType(
+          file.file_name
+        ) === "document"
     ).length;
 
 
   if (allCount) {
     allCount.textContent =
-      files.length;
+      all;
   }
 
   if (imageCount) {
@@ -937,584 +1528,28 @@ function updateCounts() {
     documentCount.textContent =
       documents;
   }
-}
-
-
-/* ============================================================
-   RENDER FILES
-============================================================ */
-
-function renderFiles() {
-
-  if (!fileGrid) {
-    return;
-  }
-
-  cleanupPreviews();
-
-  const query =
-    (
-      searchInput?.value ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-
-
-  const filtered =
-    files.filter(
-      (file) => {
-
-        const categoryMatch =
-          currentView === "all" ||
-          getCategory(file) ===
-          currentView;
-
-
-        const searchMatch =
-          (
-            file.file_name ||
-            ""
-          )
-            .toLowerCase()
-            .includes(
-              query
-            );
-
-
-        return (
-          categoryMatch &&
-          searchMatch
-        );
-      }
-    );
-
-
-  fileGrid.innerHTML =
-    "";
-
 
   if (fileCount) {
-
     fileCount.textContent =
-      filtered.length +
-      (
-        filtered.length === 1
-          ? " item"
-          : " items"
-      );
+      all;
   }
 
-
-  if (emptyState) {
-
-    emptyState.classList.toggle(
-      "hidden",
-      filtered.length !== 0
-    );
-  }
-
-
-  filtered.forEach(
-    (file, index) => {
-
-      createFileCard(
-        file,
-        index
-      );
-
-    }
-  );
 }
 
 
 /* ============================================================
-   CREATE FILE CARD
+   STORAGE UI
 ============================================================ */
 
-function createFileCard(
-  file,
-  index
-) {
+function updateStorageUI() {
 
-  const card =
-    document.createElement(
-      "article"
-    );
-
-  card.className =
-    "file-card";
-
-  card.style.animationDelay =
-    Math.min(
-      index * 0.04,
-      0.5
-    ) + "s";
-
-
-  /* PREVIEW */
-
-  const preview =
-    document.createElement(
-      "div"
-    );
-
-  preview.className =
-    "file-preview";
-
-
-  const category =
-    getCategory(file);
-
-
-  if (
-    category === "images"
-  ) {
-
-    const img =
-      document.createElement(
-        "img"
-      );
-
-    img.alt =
-      file.file_name;
-
-    img.loading =
-      "lazy";
-
-    preview.appendChild(
-      img
-    );
-
-    createSignedPreview(
-      file.object_path,
-      img
-    );
-
-  }
-
-  else if (
-    category === "videos"
-  ) {
-
-    const video =
-      document.createElement(
-        "video"
-      );
-
-    video.muted =
-      true;
-
-    video.preload =
-      "metadata";
-
-    video.playsInline =
-      true;
-
-    preview.appendChild(
-      video
-    );
-
-    createSignedPreview(
-      file.object_path,
-      video
-    );
-
-  }
-
-  else {
-
-    const icon =
-      document.createElement(
-        "div"
-      );
-
-    icon.className =
-      "document-icon";
-
-    icon.textContent =
-      getIcon(file);
-
-    preview.appendChild(
-      icon
-    );
-  }
-
-
-  /* NAME */
-
-  const name =
-    document.createElement(
-      "div"
-    );
-
-  name.className =
-    "file-name";
-
-  name.textContent =
-    file.file_name;
-
-  name.title =
-    file.file_name;
-
-
-  /* META */
-
-  const meta =
-    document.createElement(
-      "div"
-    );
-
-  meta.className =
-    "file-meta";
-
-  meta.textContent =
-    formatSize(
-      file.file_size
-    );
-
-
-  /* ACTIONS */
-
-  const actions =
-    document.createElement(
-      "div"
-    );
-
-  actions.className =
-    "file-actions";
-
-
-  const download =
-    document.createElement(
-      "button"
-    );
-
-  download.type =
-    "button";
-
-  download.textContent =
-    "Download";
-
-
-  download.addEventListener(
-    "click",
-    () =>
-      downloadFile(file)
-  );
-
-
-  const remove =
-    document.createElement(
-      "button"
-    );
-
-  remove.type =
-    "button";
-
-  remove.textContent =
-    "Delete";
-
-  remove.className =
-    "delete-btn";
-
-
-  remove.addEventListener(
-    "click",
-    () =>
-      deleteFile(file)
-  );
-
-
-  actions.append(
-    download,
-    remove
-  );
-
-
-  card.append(
-    preview,
-    name,
-    meta,
-    actions
-  );
-
-
-  fileGrid.appendChild(
-    card
-  );
-}
-
-
-/* ============================================================
-   SIGNED PREVIEW
-============================================================ */
-
-async function createSignedPreview(
-  path,
-  element
-) {
-
-  try {
-
-    const {
-      data,
-      error
-    } =
-      await db.storage
-        .from(BUCKET)
-        .createSignedUrl(
-          path,
-          300
-        );
-
-
-    if (
-      error ||
-      !data?.signedUrl
-    ) {
-
-      console.error(
-        "Preview error:",
-        error
-      );
-
-      return;
-    }
-
-
-    element.src =
-      data.signedUrl;
-
-  } catch (error) {
-
-    console.error(
-      "Preview exception:",
-      error
-    );
-  }
-}
-
-
-/* ============================================================
-   MODAL
-============================================================ */
-
-function openUploadModal() {
-
-  if (!currentUser) {
-    return;
-  }
-
-  selectedFiles = [];
-
-  renderSelectedFiles();
-
-  uploadModal?.classList.remove(
-    "hidden"
-  );
-}
-
-
-function closeUploadModal() {
-
-  uploadModal?.classList.add(
-    "hidden"
-  );
-
-  selectedFiles = [];
-
-  renderSelectedFiles();
-}
-
-
-function renderSelectedFiles() {
-
-  if (!selectedFilesBox) {
-    return;
-  }
-
-  selectedFilesBox.innerHTML =
-    "";
-
-
-  if (!selectedFiles.length) {
-
-    if (modalUploadBtn) {
-      modalUploadBtn.disabled =
-        true;
-    }
-
-    return;
-  }
-
-
-  selectedFiles.forEach(
-    (file) => {
-
-      const row =
-        document.createElement(
-          "div"
-        );
-
-      row.className =
-        "selected-file";
-
-
-      const icon =
-        document.createElement(
-          "span"
-        );
-
-      icon.textContent =
-        file.type.startsWith(
-          "image/"
-        )
-          ? "▧"
-          : file.type.startsWith(
-              "video/"
-            )
-            ? "▷"
-            : "▤";
-
-
-      const name =
-        document.createElement(
-          "span"
-        );
-
-      name.textContent =
-        file.name;
-
-
-      const size =
-        document.createElement(
-          "span"
-        );
-
-      size.textContent =
-        formatSize(
-          file.size
-        );
-
-
-      row.append(
-        icon,
-        name,
-        size
-      );
-
-
-      selectedFilesBox.appendChild(
-        row
-      );
-    }
-  );
-
-
-  if (modalUploadBtn) {
-    modalUploadBtn.disabled =
-      false;
-  }
-}
-
-
-/* ============================================================
-   ADD FILES TO MODAL
-============================================================ */
-
-function addSelectedFiles(
-  newFiles
-) {
-
-  const incoming =
-    Array.from(
-      newFiles || []
-    );
-
-
-  selectedFiles = [
-    ...selectedFiles,
-    ...incoming
-  ];
-
-
-  /*
-    Remove duplicate selections
-    based on name + size + lastModified.
-  */
-
-  const unique =
-    new Map();
-
-
-  selectedFiles.forEach(
-    (file) => {
-
-      const key =
-        [
-          file.name,
-          file.size,
-          file.lastModified
-        ].join("|");
-
-
-      unique.set(
-        key,
-        file
-      );
-    }
-  );
-
-
-  selectedFiles =
-    Array.from(
-      unique.values()
-    );
-
-
-  renderSelectedFiles();
-}
-
-
-/* ============================================================
-   UPLOAD
-============================================================ */
-
-async function uploadFiles(
-  filesToUpload
-) {
-
-  if (
-    !currentUser ||
-    !filesToUpload.length
-  ) {
-    return;
-  }
-
-
-  hideNotice();
-
-
-  const totalSize =
-    filesToUpload.reduce(
-      (
-        sum,
-        file
-      ) =>
-        sum +
-        file.size,
-      0
-    );
-
-
-  const used =
+  const usedBytes =
     files.reduce(
       (
-        sum,
+        total,
         file
       ) =>
-        sum +
+        total +
         Number(
           file.file_size || 0
         ),
@@ -1522,23 +1557,391 @@ async function uploadFiles(
     );
 
 
-  if (
-    used + totalSize >
-    USER_QUOTA
-  ) {
+  const percent =
+    Math.min(
+      (
+        usedBytes /
+        USER_QUOTA
+      ) * 100,
+      100
+    );
+
+
+  if (storageFill) {
+
+    storageFill.style.width =
+      `${percent}%`;
+
+  }
+
+
+  if (storageUsed) {
+
+    storageUsed.textContent =
+      formatSize(
+        usedBytes
+      );
+
+  }
+
+
+  if (storagePercent) {
+
+    storagePercent.textContent =
+      `${percent.toFixed(2)}%`;
+
+  }
+
+}
+
+
+/* ============================================================
+   LOADING STATE
+============================================================ */
+
+function showLoadingState() {
+
+  if (!fileGrid) {
+    return;
+  }
+
+  fileGrid.innerHTML = `
+    <div class="loading-state">
+      Loading your files...
+    </div>
+  `;
+
+}
+
+
+/* ============================================================
+   HIDE LOADING STATE
+============================================================ */
+
+function hideLoadingState() {
+
+  /*
+    renderFiles() controls the final state.
+  */
+
+}
+
+
+/* ============================================================
+   UPLOAD MODAL
+============================================================ */
+
+function openUploadModal() {
+
+  if (!currentUser) {
 
     showToast(
-      "This upload exceeds your 500 GB storage allowance.",
+      "Please sign in first.",
       true
     );
 
     return;
+
   }
 
 
-  uploadProgress?.classList.remove(
+  selectedFiles = [];
+
+  renderSelectedFiles();
+
+
+  uploadModal?.classList.remove(
     "hidden"
   );
+
+}
+
+
+/* ============================================================
+   CLOSE UPLOAD MODAL
+============================================================ */
+
+function closeUploadModal() {
+
+  uploadModal?.classList.add(
+    "hidden"
+  );
+
+
+  selectedFiles = [];
+
+  renderSelectedFiles();
+
+
+  if (fileInput) {
+
+    fileInput.value =
+      "";
+
+  }
+
+}
+
+
+/* ============================================================
+   ADD SELECTED FILES
+============================================================ */
+
+function addSelectedFiles(
+  fileList
+) {
+
+  const incoming =
+    Array.from(
+      fileList || []
+    );
+
+
+  if (!incoming.length) {
+    return;
+  }
+
+
+  for (
+    const file of incoming
+  ) {
+
+    const alreadyExists =
+      selectedFiles.some(
+        selected =>
+          selected.name ===
+            file.name &&
+          selected.size ===
+            file.size &&
+          selected.lastModified ===
+            file.lastModified
+      );
+
+
+    if (
+      !alreadyExists
+    ) {
+
+      selectedFiles.push(
+        file
+      );
+
+    }
+
+  }
+
+
+  renderSelectedFiles();
+
+}
+
+
+/* ============================================================
+   RENDER SELECTED FILES
+============================================================ */
+
+function renderSelectedFiles() {
+
+  if (!selectedFilesBox) {
+    return;
+  }
+
+
+  selectedFilesBox.innerHTML =
+    "";
+
+
+  if (!selectedFiles.length) {
+
+    selectedFilesBox.innerHTML = `
+      <div class="selected-empty">
+        No files selected.
+      </div>
+    `;
+
+    if (modalUploadBtn) {
+      modalUploadBtn.disabled =
+        true;
+    }
+
+    return;
+
+  }
+
+
+  if (modalUploadBtn) {
+    modalUploadBtn.disabled =
+      false;
+  }
+
+
+  selectedFiles.forEach(
+    (
+      file,
+      index
+    ) => {
+
+      const item =
+        document.createElement(
+          "div"
+        );
+
+
+      item.className =
+        "selected-file";
+
+
+      item.innerHTML = `
+
+        <div>
+
+          <strong>
+            ${escapeHtml(
+              file.name
+            )}
+          </strong>
+
+          <small>
+            ${formatSize(
+              file.size
+            )}
+          </small>
+
+        </div>
+
+        <button
+          type="button"
+          data-remove="${index}"
+          title="Remove"
+        >
+          ×
+        </button>
+
+      `;
+
+
+      item
+        .querySelector(
+          "[data-remove]"
+        )
+        ?.addEventListener(
+          "click",
+          () => {
+
+            selectedFiles.splice(
+              index,
+              1
+            );
+
+            renderSelectedFiles();
+
+          }
+        );
+
+
+      selectedFilesBox.appendChild(
+        item
+      );
+
+    }
+  );
+
+}
+
+
+/* ============================================================
+   UPLOAD SELECTED FILES
+============================================================ */
+
+async function uploadSelectedFiles() {
+
+  if (!currentUser) {
+
+    showToast(
+      "Please sign in first.",
+      true
+    );
+
+    return;
+
+  }
+
+
+  if (!selectedFiles.length) {
+
+    showToast(
+      "Please select at least one file.",
+      true
+    );
+
+    return;
+
+  }
+
+
+  const filesToUpload =
+    [...selectedFiles];
+
+
+  const currentUsed =
+    files.reduce(
+      (
+        total,
+        file
+      ) =>
+        total +
+        Number(
+          file.file_size || 0
+        ),
+      0
+    );
+
+
+  const incomingSize =
+    filesToUpload.reduce(
+      (
+        total,
+        file
+      ) =>
+        total +
+        Number(
+          file.size || 0
+        ),
+      0
+    );
+
+
+  if (
+    currentUsed +
+    incomingSize >
+    USER_QUOTA
+  ) {
+
+    showToast(
+      "Storage quota exceeded.",
+      true
+    );
+
+    return;
+
+  }
+
+
+  if (uploadProgress) {
+
+    uploadProgress.classList.remove(
+      "hidden"
+    );
+
+  }
+
+
+  if (modalUploadBtn) {
+
+    modalUploadBtn.disabled =
+      true;
+
+  }
 
 
   let completed =
@@ -1548,8 +1951,7 @@ async function uploadFiles(
 
 
   for (
-    const file
-    of filesToUpload
+    const file of filesToUpload
   ) {
 
     if (
@@ -1558,48 +1960,47 @@ async function uploadFiles(
     ) {
 
       errors.push(
-        file.name +
-        " is larger than 500 MB."
+        `${file.name}: file is larger than the allowed upload size.`
       );
 
       continue;
+
     }
-
-
-    const path =
-      currentUser.id +
-      "/" +
-      crypto.randomUUID() +
-      "-" +
-      safeName(
-        file.name
-      );
-
-
-    if (progressText) {
-
-      progressText.textContent =
-        "Uploading " +
-        file.name;
-    }
-
-
-    const percentBefore =
-      Math.round(
-        (
-          completed /
-          filesToUpload.length
-        ) *
-        100
-      );
-
-
-    updateProgress(
-      percentBefore
-    );
 
 
     try {
+
+      if (progressText) {
+
+        progressText.textContent =
+          `Uploading ${file.name}`;
+
+      }
+
+
+      const folder =
+        getUserFolder();
+
+
+      const safeName =
+        file.name
+          .replace(
+            /[^\w.\-() ]+/g,
+            "_"
+          )
+          .trim() ||
+        "file";
+
+
+      const uniqueName =
+        `${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2, 10)}_${safeName}`;
+
+
+      const path =
+        `${folder}/${uniqueName}`;
+
 
       const {
         error:
@@ -1611,13 +2012,10 @@ async function uploadFiles(
             path,
             file,
             {
+              upsert: false,
               contentType:
                 file.type ||
                 "application/octet-stream",
-
-              upsert:
-                false,
-
               cacheControl:
                 "3600"
             }
@@ -1626,18 +2024,8 @@ async function uploadFiles(
 
       if (uploadError) {
 
-        console.error(
-          "Storage upload error:",
-          uploadError
-        );
+        throw uploadError;
 
-        errors.push(
-          file.name +
-          ": " +
-          uploadError.message
-        );
-
-        continue;
       }
 
 
@@ -1664,16 +2052,16 @@ async function uploadFiles(
 
             file_size:
               file.size
+
           });
 
 
       if (recordError) {
 
-        console.error(
-          "Database record error:",
-          recordError
-        );
-
+        /*
+          If database record fails,
+          remove the uploaded object.
+        */
 
         await db.storage
           .from(BUCKET)
@@ -1681,46 +2069,42 @@ async function uploadFiles(
             path
           ]);
 
+        throw recordError;
 
-        errors.push(
-          file.name +
-          ": " +
-          recordError.message
-        );
-
-        continue;
       }
 
 
       completed++;
 
-      const progress =
+
+      const percent =
         Math.round(
           (
             completed /
             filesToUpload.length
-          ) *
-          100
+          ) * 100
         );
 
 
       updateProgress(
-        progress
+        percent
       );
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
       console.error(
-        "Upload exception:",
+        "[NAYAN CLOUD] Upload error:",
         error
       );
 
       errors.push(
-        file.name +
-        ": " +
-        error.message
+        `${file.name}: ${getAuthErrorDetails(error)}`
       );
+
     }
+
   }
 
 
@@ -1730,8 +2114,10 @@ async function uploadFiles(
 
 
   if (progressText) {
+
     progressText.textContent =
       "Upload finished.";
+
   }
 
 
@@ -1754,33 +2140,27 @@ async function uploadFiles(
       true
     );
 
-  } else {
-
-    showToast(
-      completed +
-      (
-        completed === 1
-          ? " file uploaded successfully."
-          : " files uploaded successfully."
-      )
-    );
   }
 
 
-  if (fileInput) {
-    fileInput.value =
-      "";
+  if (completed > 0) {
+
+    showToast(
+      `${completed} file${completed === 1 ? "" : "s"} uploaded successfully.`
+    );
+
   }
 
 
   closeUploadModal();
 
   await loadFiles();
+
 }
 
 
 /* ============================================================
-   PROGRESS
+   UPDATE UPLOAD PROGRESS
 ============================================================ */
 
 function updateProgress(
@@ -1792,31 +2172,41 @@ function updateProgress(
       0,
       Math.min(
         100,
-        percent
+        Number(percent) || 0
       )
     );
 
 
   if (progressFill) {
+
     progressFill.style.width =
-      safePercent + "%";
+      `${safePercent}%`;
+
   }
 
 
   if (progressPercent) {
+
     progressPercent.textContent =
-      safePercent + "%";
+      `${safePercent}%`;
+
   }
+
 }
 
 
 /* ============================================================
-   DOWNLOAD
+   DOWNLOAD FILE
 ============================================================ */
 
 async function downloadFile(
   file
 ) {
+
+  if (!currentUser) {
+    return;
+  }
+
 
   try {
 
@@ -1833,7 +2223,7 @@ async function downloadFile(
         .from(BUCKET)
         .createSignedUrl(
           file.object_path,
-          60
+          300
         );
 
 
@@ -1846,6 +2236,7 @@ async function downloadFile(
         error?.message ||
         "Could not create download link."
       );
+
     }
 
 
@@ -1859,7 +2250,8 @@ async function downloadFile(
       data.signedUrl;
 
     link.download =
-      file.file_name;
+      file.file_name ||
+      "download";
 
     link.target =
       "_blank";
@@ -1872,40 +2264,52 @@ async function downloadFile(
       link
     );
 
+
     link.click();
+
 
     link.remove();
 
+  }
 
-  } catch (error) {
+  catch (error) {
 
     console.error(
-      "Download error:",
+      "[NAYAN CLOUD] Download error:",
       error
     );
 
     showToast(
-      "Download failed: " +
-      error.message,
+      `Download failed: ${getAuthErrorDetails(error)}`,
       true
     );
+
   }
+
 }
 
 
 /* ============================================================
-   DELETE
+   DELETE FILE
 ============================================================ */
 
 async function deleteFile(
   file
 ) {
 
+  if (!currentUser) {
+    return;
+  }
+
+
+  const fileName =
+    file.file_name ||
+    "this file";
+
+
   const confirmed =
     window.confirm(
-      "Permanently delete " +
-      file.file_name +
-      "?"
+      `Permanently delete "${fileName}"?`
     );
 
 
@@ -1934,9 +2338,8 @@ async function deleteFile(
 
     if (storageError) {
 
-      throw new Error(
-        storageError.message
-      );
+      throw storageError;
+
     }
 
 
@@ -1959,9 +2362,8 @@ async function deleteFile(
 
     if (databaseError) {
 
-      throw new Error(
-        databaseError.message
-      );
+      throw databaseError;
+
     }
 
 
@@ -1972,19 +2374,381 @@ async function deleteFile(
 
     await loadFiles();
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     console.error(
-      "Delete error:",
+      "[NAYAN CLOUD] Delete error:",
       error
     );
 
     showToast(
-      "Delete failed: " +
-      error.message,
+      `Delete failed: ${getAuthErrorDetails(error)}`,
       true
     );
+
   }
+
+}
+
+
+/* ============================================================
+   PREVIEW FILE
+============================================================ */
+
+async function previewFile(
+  file
+) {
+
+  if (!currentUser) {
+    return;
+  }
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await db.storage
+        .from(BUCKET)
+        .download(
+          file.object_path
+        );
+
+
+    if (error) {
+
+      throw error;
+
+    }
+
+
+    if (!data) {
+
+      throw new Error(
+        "Preview file is empty."
+      );
+
+    }
+
+
+    previewUrls.forEach(
+      url =>
+        URL.revokeObjectURL(
+          url
+        )
+    );
+
+
+    previewUrls = [];
+
+
+    /*
+      Use existing preview modal
+      if present in the HTML.
+    */
+
+    const previewModal =
+      $("previewModal");
+
+    const previewContent =
+      $("previewContent");
+
+    const previewTitle =
+      $("previewTitle");
+
+    const closePreviewBtn =
+      $("closePreviewBtn");
+
+
+    if (
+      !previewModal ||
+      !previewContent
+    ) {
+
+      /*
+        Browser fallback when preview
+        modal is not present.
+      */
+
+      const url =
+        URL.createObjectURL(
+          data
+        );
+
+      window.open(
+        url,
+        "_blank",
+        "noopener"
+      );
+
+      setTimeout(
+        () =>
+          URL.revokeObjectURL(
+            url
+          ),
+        60000
+      );
+
+      return;
+
+    }
+
+
+    const url =
+      URL.createObjectURL(
+        data
+      );
+
+
+    previewUrls.push(
+      url
+    );
+
+
+    if (previewTitle) {
+
+      previewTitle.textContent =
+        file.file_name ||
+        "Preview";
+
+    }
+
+
+    previewContent.innerHTML =
+      "";
+
+
+    const type =
+      getFileType(
+        file.file_name
+      );
+
+
+    if (
+      type ===
+      "image"
+    ) {
+
+      const img =
+        document.createElement(
+          "img"
+        );
+
+      img.src =
+        url;
+
+      img.alt =
+        file.file_name ||
+        "Image";
+
+      previewContent.appendChild(
+        img
+      );
+
+    }
+
+
+    else if (
+      type ===
+      "video"
+    ) {
+
+      const video =
+        document.createElement(
+          "video"
+        );
+
+      video.src =
+        url;
+
+      video.controls =
+        true;
+
+      video.autoplay =
+        false;
+
+      previewContent.appendChild(
+        video
+      );
+
+    }
+
+
+    else if (
+      type ===
+      "audio"
+    ) {
+
+      const audio =
+        document.createElement(
+          "audio"
+        );
+
+      audio.src =
+        url;
+
+      audio.controls =
+        true;
+
+      previewContent.appendChild(
+        audio
+      );
+
+    }
+
+
+    else if (
+      type ===
+        "document" &&
+      String(
+        file.file_name || ""
+      )
+        .toLowerCase()
+        .endsWith(".pdf")
+    ) {
+
+      const frame =
+        document.createElement(
+          "iframe"
+        );
+
+      frame.src =
+        url;
+
+      frame.title =
+        file.file_name ||
+        "PDF";
+
+      previewContent.appendChild(
+        frame
+      );
+
+    }
+
+
+    else {
+
+      const wrapper =
+        document.createElement(
+          "div"
+        );
+
+
+      wrapper.className =
+        "preview-fallback";
+
+
+      wrapper.innerHTML = `
+
+        <i class="fa-solid ${getFileIcon(
+          file.file_name
+        )}"></i>
+
+        <h3>
+          ${escapeHtml(
+            file.file_name
+          )}
+        </h3>
+
+        <p>
+          Preview is not available for this file type.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          id="previewDownloadBtn"
+        >
+          Download File
+        </button>
+
+      `;
+
+
+      previewContent.appendChild(
+        wrapper
+      );
+
+
+      wrapper
+        .querySelector(
+          "#previewDownloadBtn"
+        )
+        ?.addEventListener(
+          "click",
+          () =>
+            downloadFile(file)
+        );
+
+    }
+
+
+    previewModal.classList.remove(
+      "hidden"
+    );
+
+
+    closePreviewBtn?.focus();
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "[NAYAN CLOUD] Preview error:",
+      error
+    );
+
+    showToast(
+      `Preview failed: ${getAuthErrorDetails(error)}`,
+      true
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   CLOSE PREVIEW
+============================================================ */
+
+function closePreview() {
+
+  const previewModal =
+    $("previewModal");
+
+  const previewContent =
+    $("previewContent");
+
+
+  previewUrls.forEach(
+    url =>
+      URL.revokeObjectURL(
+        url
+      )
+  );
+
+
+  previewUrls = [];
+
+
+  if (previewContent) {
+
+    previewContent.innerHTML =
+      "";
+
+  }
+
+
+  previewModal?.classList.add(
+    "hidden"
+  );
+
 }
 
 
@@ -1996,38 +2760,34 @@ function setupNavigation() {
 
   document
     .querySelectorAll(
-      ".nav-item"
+      "[data-view]"
     )
     .forEach(
-      (button) => {
+      item => {
 
-        button.addEventListener(
+        item.addEventListener(
           "click",
           () => {
 
+            currentView =
+              item.dataset.view ||
+              "all";
+
+
             document
               .querySelectorAll(
-                ".nav-item"
+                "[data-view]"
               )
               .forEach(
-                (item) => {
+                nav => {
 
-                  item.classList.remove(
-                    "active"
+                  nav.classList.toggle(
+                    "active",
+                    nav === item
                   );
 
                 }
               );
-
-
-            button.classList.add(
-              "active"
-            );
-
-
-            currentView =
-              button.dataset.view ||
-              "all";
 
 
             const titles = {
@@ -2042,7 +2802,10 @@ function setupNavigation() {
                 "Videos",
 
               documents:
-                "Documents"
+                "Documents",
+
+              audio:
+                "Audio"
 
             };
 
@@ -2055,8 +2818,10 @@ function setupNavigation() {
 
 
             if (viewTitle) {
+
               viewTitle.textContent =
                 title;
+
             }
 
 
@@ -2066,6 +2831,7 @@ function setupNavigation() {
                 currentView === "all"
                   ? "Your files"
                   : title;
+
             }
 
 
@@ -2076,323 +2842,88 @@ function setupNavigation() {
 
       }
     );
+
 }
 
 
 /* ============================================================
-   EVENT LISTENERS
+   LOGOUT
 ============================================================ */
 
+async function logout() {
 
-/* GOOGLE */
-
-loginBtn?.addEventListener(
-  "click",
-  loginWithGoogle
-);
-
-
-/* UPLOAD BUTTON */
-
-uploadBtn?.addEventListener(
-  "click",
-  openUploadModal
-);
-
-
-emptyUploadBtn?.addEventListener(
-  "click",
-  openUploadModal
-);
-
-
-/* DROP ZONE */
-
-dropZone?.addEventListener(
-  "click",
-  () => {
-
-    fileInput?.click();
-
+  if (!currentUser) {
+    return;
   }
-);
 
 
-/* FILE INPUT */
+  if (logoutBtn) {
 
-fileInput?.addEventListener(
-  "change",
-  (event) => {
-
-    addSelectedFiles(
-      event.target.files
-    );
-
-  }
-);
-
-
-/* MODAL UPLOAD */
-
-modalUploadBtn?.addEventListener(
-  "click",
-  async () => {
-
-    if (
-      !selectedFiles.length
-    ) {
-      return;
-    }
-
-    modalUploadBtn.disabled =
+    logoutBtn.disabled =
       true;
 
-    await uploadFiles(
-      selectedFiles
-    );
-
-    modalUploadBtn.disabled =
-      false;
   }
-);
 
 
-/* MODAL CLOSE */
+  try {
 
-modalClose?.addEventListener(
-  "click",
-  closeUploadModal
-);
-
-
-modalBackdrop?.addEventListener(
-  "click",
-  closeUploadModal
-);
+    const {
+      error
+    } =
+      await db.auth.signOut();
 
 
-/* DRAG ENTER */
+    if (error) {
 
-dropZone?.addEventListener(
-  "dragenter",
-  (event) => {
+      throw error;
 
-    event.preventDefault();
+    }
 
-    dropZone.classList.add(
-      "dragover"
-    );
+
+    currentUser =
+      null;
+
+    files =
+      [];
+
+    selectedFiles =
+      [];
+
+
+    showLogin();
+
+    resetLoginButton();
+
+    setLoginMessage("");
 
   }
-);
 
+  catch (error) {
 
-/* DRAG OVER */
+    console.error(
+      "[NAYAN CLOUD] Logout error:",
+      error
+    );
 
-dropZone?.addEventListener(
-  "dragover",
-  (event) => {
-
-    event.preventDefault();
-
-    dropZone.classList.add(
-      "dragover"
+    showToast(
+      `Logout failed: ${getAuthErrorDetails(error)}`,
+      true
     );
 
   }
-);
 
+  finally {
 
-/* DRAG LEAVE */
-
-dropZone?.addEventListener(
-  "dragleave",
-  (event) => {
-
-    event.preventDefault();
-
-    dropZone.classList.remove(
-      "dragover"
-    );
-
-  }
-);
-
-
-/* DROP */
-
-dropZone?.addEventListener(
-  "drop",
-  (event) => {
-
-    event.preventDefault();
-
-    dropZone.classList.remove(
-      "dragover"
-    );
-
-
-    addSelectedFiles(
-      event.dataTransfer.files
-    );
-
-  }
-);
-
-
-/* REFRESH */
-
-refreshBtn?.addEventListener(
-  "click",
-  async () => {
-
-    refreshBtn.style.transform =
-      "rotate(360deg)";
-
-    await loadFiles();
-
-    setTimeout(
-      () => {
-        refreshBtn.style.transform =
-          "";
-      },
-      350
-    );
-
-  }
-);
-
-
-/* SEARCH */
-
-searchInput?.addEventListener(
-  "input",
-  renderFiles
-);
-
-
-/* LOGOUT */
-
-logoutBtn?.addEventListener(
-  "click",
-  async () => {
-
-    try {
-
-      logoutBtn.disabled =
-        true;
-
-
-      const {
-        error
-      } =
-        await db.auth.signOut();
-
-
-      if (error) {
-
-        console.error(
-          "Logout error:",
-          error
-        );
-
-        showToast(
-          "Sign out failed: " +
-          error.message,
-          true
-        );
-
-        logoutBtn.disabled =
-          false;
-
-        return;
-      }
-
-
-      clearApp();
-
-    } catch (error) {
-
-      console.error(
-        "Logout exception:",
-        error
-      );
-
-      showToast(
-        "Sign out failed.",
-        true
-      );
+    if (logoutBtn) {
 
       logoutBtn.disabled =
         false;
-    }
-  }
-);
-
-
-/* ============================================================
-   KEYBOARD SHORTCUTS
-============================================================ */
-
-document.addEventListener(
-  "keydown",
-  (event) => {
-
-    /*
-      U = Upload
-    */
-
-    if (
-      event.key.toLowerCase() ===
-      "u" &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.altKey &&
-      document.activeElement?.tagName !==
-        "INPUT"
-    ) {
-
-      if (currentUser) {
-        openUploadModal();
-      }
-    }
-
-
-    /*
-      Escape = Close modal
-    */
-
-    if (
-      event.key ===
-      "Escape"
-    ) {
-
-      closeUploadModal();
-
-    }
-
-
-    /*
-      Ctrl/Cmd + K = Search
-    */
-
-    if (
-      (
-        event.ctrlKey ||
-        event.metaKey
-      ) &&
-      event.key.toLowerCase() ===
-      "k"
-    ) {
-
-      event.preventDefault();
-
-      searchInput?.focus();
 
     }
 
   }
-);
+
+}
 
 
 /* ============================================================
@@ -2405,27 +2936,93 @@ async function initializeAuth() {
     "NAYAN CLOUD: Initializing authentication..."
   );
 
-
-  /*
-    Hide everything while checking
-    the existing Supabase session.
-  */
-
-  loginScreen.classList.add(
-    "hidden"
-  );
-
-  appScreen.classList.add(
-    "hidden"
-  );
-
+  loginScreen.classList.add("hidden");
+  appScreen.classList.add("hidden");
 
   try {
 
-    /*
-      Supabase restores the session
-      from localStorage/cookie.
-    */
+    /* =========================================================
+       GOOGLE OAUTH / PKCE CODE
+    ========================================================= */
+
+    const url = new URL(
+      window.location.href
+    );
+
+    const code =
+      url.searchParams.get("code");
+
+    if (code) {
+
+      console.log(
+        "NAYAN CLOUD: OAuth code detected."
+      );
+
+      const {
+        data,
+        error
+      } =
+        await db.auth.exchangeCodeForSession(
+          code
+        );
+
+      if (error) {
+
+        console.error(
+          "NAYAN CLOUD: OAuth code exchange failed:",
+          error
+        );
+
+        resetLoginButton();
+
+        showLogin();
+
+        setLoginMessage(
+          "Google login failed: " +
+          (error.message ||
+            "Unable to create session."),
+          true
+        );
+
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.origin +
+          window.location.pathname
+        );
+
+        return;
+      }
+
+      console.log(
+        "NAYAN CLOUD: OAuth session created."
+      );
+
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.origin +
+        window.location.pathname
+      );
+
+      if (data?.session?.user) {
+
+        currentUser =
+          data.session.user;
+
+        resetLoginButton();
+
+        await enterApp(
+          currentUser
+        );
+
+        return;
+      }
+    }
+
+    /* =========================================================
+       NORMAL SESSION CHECK
+    ========================================================= */
 
     const {
       data,
@@ -2433,13 +3030,14 @@ async function initializeAuth() {
     } =
       await db.auth.getSession();
 
-
     if (error) {
 
       console.error(
-        "Session error:",
+        "NAYAN CLOUD: Session error:",
         error
       );
+
+      resetLoginButton();
 
       showLogin();
 
@@ -2451,19 +3049,20 @@ async function initializeAuth() {
       return;
     }
 
-
     const session =
       data?.session;
 
-
-    if (
-      session?.user
-    ) {
+    if (session?.user) {
 
       console.log(
-        "Existing session:",
+        "NAYAN CLOUD: Existing session:",
         session.user.email
       );
+
+      currentUser =
+        session.user;
+
+      resetLoginButton();
 
       await enterApp(
         session.user
@@ -2472,113 +3071,33 @@ async function initializeAuth() {
     } else {
 
       console.log(
-        "No active session."
+        "NAYAN CLOUD: No active session."
       );
 
-      showLogin();
-    }
+      resetLoginButton();
 
+      showLogin();
+
+    }
 
   } catch (error) {
 
     console.error(
-      "Auth initialization error:",
+      "NAYAN CLOUD: Authentication initialization error:",
       error
     );
+
+    currentUser = null;
+
+    resetLoginButton();
 
     showLogin();
 
     setLoginMessage(
-      "Authentication initialization failed.",
+      "Authentication failed: " +
+      (error?.message ||
+        "Unknown authentication error."),
       true
     );
   }
 }
-
-
-/* ============================================================
-   AUTH STATE LISTENER
-============================================================ */
-
-db.auth.onAuthStateChange(
-  async (
-    event,
-    session
-  ) => {
-
-    console.log(
-      "Supabase auth event:",
-      event
-    );
-
-
-    if (
-      event ===
-      "SIGNED_IN"
-    ) {
-
-      if (
-        session?.user
-      ) {
-
-        resetLoginButton();
-
-        await enterApp(
-          session.user
-        );
-      }
-
-      return;
-    }
-
-
-    if (
-      event ===
-      "TOKEN_REFRESHED"
-    ) {
-
-      if (
-        session?.user
-      ) {
-
-        currentUser =
-          session.user;
-
-        updateUserUI(
-          session.user
-        );
-      }
-
-      return;
-    }
-
-
-    if (
-      event ===
-      "SIGNED_OUT"
-    ) {
-
-      clearApp();
-
-      return;
-    }
-
-  }
-);
-
-
-/* ============================================================
-   START
-============================================================ */
-
-document.addEventListener(
-  "DOMContentLoaded",
-  () => {
-
-    setupNavigation();
-
-    initializeAuth();
-
-  }
-);
-
