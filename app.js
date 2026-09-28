@@ -11,7 +11,7 @@ const SUPABASE_URL =
   "https://pcuefhymomxaxfncskpr.supabase.co";
 
 const SUPABASE_KEY =
-  "sb_publishable_PcbJ0X0yAGrDIV8M7j6ueg_AsNbWpv";
+  "sb_publishable_PcbJ0X0yAGrDIV8M7j6ueg_AsnNbWpv";
 
 const BUCKET =
   "cloud-files";
