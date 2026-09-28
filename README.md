@@ -1,1 +1,0 @@
-# NAYAN-CLOUD
