@@ -2042,21 +2042,11 @@ async function initializeAuth() {
   console.log(
     "NAYAN CLOUD: Initializing authentication..."
   );
-
-
-  /*
-    While Supabase checks the existing session,
-    keep both screens hidden.
-  */
-
-  loginScreen?.classList.add(
-    "hidden"
-  );
-
-  app?.classList.add(
-    "hidden"
-  );
-
+/*
+  Show the login screen while Supabase checks
+  whether an existing session is available.
+*/
+showLogin();
 
   try {
 
