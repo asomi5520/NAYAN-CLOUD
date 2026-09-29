@@ -63,7 +63,7 @@ const loginScreen =
   document.getElementById("loginScreen");
 
 const app =
-  document.getElementById("app");
+  document.getElementById("appScreen");
 
 const loginBtn =
   document.getElementById("loginBtn");
@@ -2042,11 +2042,11 @@ async function initializeAuth() {
   console.log(
     "NAYAN CLOUD: Initializing authentication..."
   );
-/*
-  Show the login screen while Supabase checks
-  whether an existing session is available.
-*/
-showLogin();
+
+  // Show login screen immediately.
+  // If a valid session exists, enterApp()
+  // will switch to the dashboard.
+  showLogin();
 
   try {
 
@@ -2054,7 +2054,6 @@ showLogin();
       data,
       error
     } = await db.auth.getSession();
-
 
     if (error) {
 
@@ -2071,23 +2070,17 @@ showLogin();
       );
 
       return;
-
     }
-
 
     const session =
       data?.session;
 
-
-    if (
-      session?.user
-    ) {
+    if (session?.user) {
 
       console.log(
         "Existing session:",
         session.user.email
       );
-
 
       await enterApp(
         session.user
@@ -2100,9 +2093,7 @@ showLogin();
       );
 
       showLogin();
-
     }
-
 
   } catch (error) {
 
@@ -2117,11 +2108,8 @@ showLogin();
       "Authentication initialization failed.",
       true
     );
-
   }
-
 }
-
 
 /* ============================================================
    AUTH STATE LISTENER
